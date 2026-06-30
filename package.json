@@ -1,8 +1,8 @@
 {
-  "name": "zeipilot",
+  "name": "uriko",
   "version": "0.1.0",
   "private": true,
-  "description": "ZEIPILOT — フリーランス・個人事業主向けのAI経理エージェント。取引データを入れるだけで、AIが事業/プライベートを判定して仕訳し、手取りと税金の概算を即計算する。",
+  "description": "URIKO — ネットショップ運営者向けのAI出品コピー生成ツール。商品名と特徴を入れるだけで、商品説明文・キャッチコピー・SEO・SNS投稿・広告コピーをAIが一発生成する。",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

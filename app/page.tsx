@@ -1,47 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { parseCsv } from "@/lib/csv";
-import { SAMPLE_CSV } from "@/lib/sample";
-import type { AnalyzedItem } from "@/lib/types";
-import type { TaxResult } from "@/lib/tax";
-
-type ApiResult = {
-  engine: "ai" | "mock";
-  items: AnalyzedItem[];
-  totals: { revenue: number; expenses: number; privateSpend: number; count: number };
-  tax: TaxResult;
-};
-
-const yen = (n: number) => "¥" + Math.round(n).toLocaleString("ja-JP");
+import { SAMPLE_PRODUCT } from "@/lib/sample";
+import { TONES, type GenerateResult, type ListingPack } from "@/lib/types";
 
 export default function Home() {
-  const [text, setText] = useState("");
-  const [social, setSocial] = useState(0);
+  const [name, setName] = useState("");
+  const [features, setFeatures] = useState("");
+  const [audience, setAudience] = useState("");
+  const [tone, setTone] = useState<string>("標準");
+  const [price, setPrice] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ApiResult | null>(null);
+  const [result, setResult] = useState<GenerateResult | null>(null);
 
-  async function analyze() {
+  function loadSample() {
+    setName(SAMPLE_PRODUCT.name);
+    setFeatures(SAMPLE_PRODUCT.features);
+    setAudience(SAMPLE_PRODUCT.audience || "");
+    setTone((SAMPLE_PRODUCT.tone as string) || "標準");
+    setPrice(SAMPLE_PRODUCT.price || "");
+  }
+
+  async function run() {
     setError(null);
-    const transactions = parseCsv(text);
-    if (transactions.length === 0) {
-      setError("取引データを読み取れませんでした。「日付,内容,金額」の形式で入力してください。");
-      return;
-    }
+    if (!name.trim()) return setError("商品名を入力してください。");
+    if (!features.trim()) return setError("特徴・メモを入力してください（箇条書きでOK）。");
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactions, socialInsurance: social }),
+        body: JSON.stringify({ name, features, audience, tone, price }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "分析に失敗しました");
-      setResult(data as ApiResult);
+      if (!res.ok) throw new Error(data.error || "生成に失敗しました");
+      setResult(data as GenerateResult);
+      setTimeout(
+        () => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }),
+        50
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "分析に失敗しました");
+      setError(e instanceof Error ? e.message : "生成に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -51,56 +53,99 @@ export default function Home() {
     <>
       <header className="hero">
         <div className="wrap">
-          <div className="brand">
-            <span className="dot" />
-            ZEIPILOT
+          <div className="nav">
+            <div className="brand">
+              <span className="mark">🛍️</span> URIKO
+            </div>
+            <a className="navcta" href="#presell">
+              先行登録
+            </a>
           </div>
           <h1>
-            確定申告を、<span className="accent">自動操縦</span>に。
+            ネットショップの<span className="hl">“売る言葉”</span>を、
+            <br />
+            AIがまるごと量産。
           </h1>
           <p className="lede">
-            フリーランス・個人事業主のためのAI経理エージェント。取引データを入れるだけで、AIが
-            「事業の経費か / プライベートか」を判定して自動仕訳し、いまの手取りと払う税金の概算を即計算します。
+            商品名と特徴を入れるだけ。商品説明文・キャッチコピー・SEOタイトル・SNS投稿・広告コピーを、
+            ECに最適化された形でAIが一発生成します。毎週の「文章を書く時間」を、ゼロに。
           </p>
           <div className="chips">
-            <span className="chip">AIが勘定科目まで自動判定</span>
-            <span className="chip">手取り・税金が一目でわかる</span>
-            <span className="chip">確定申告の下準備をゼロ手間に</span>
+            <span className="chip">商品説明文 ×3トーン</span>
+            <span className="chip">キャッチコピー</span>
+            <span className="chip">SEOタイトル・キーワード</span>
+            <span className="chip">X / Instagram 投稿</span>
+            <span className="chip">検索広告コピー</span>
+          </div>
+          <div className="herocta">
+            <a className="btn btn-primary" href="#tool">
+              無料で試す
+            </a>
+            <a className="btn btn-light" href="#presell">
+              先行メンバーになる
+            </a>
           </div>
         </div>
       </header>
 
-      <section className="section">
+      <section className="section" id="tool">
         <div className="wrap">
           <div className="card lift">
-            <h2>取引データを貼り付け</h2>
-            <span className="label">形式: 日付,内容,金額（金額は 入金=正 / 出金=負）</span>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={"2026-06-05,株式会社アクメ 制作費 入金,440000\n2026-06-09,Amazon Web Services 利用料,-8800"}
-            />
-            <div className="row">
-              <button className="btn btn-primary" onClick={analyze} disabled={loading}>
-                {loading ? "AIが仕訳中…" : "AIで分析する"}
-              </button>
-              <button
-                className="btn btn-ghost"
-                onClick={() => setText(SAMPLE_CSV)}
-                disabled={loading}
-              >
-                サンプルデータを入れる
-              </button>
-              <label className="si">
-                社会保険料(概算/年)
+            <h2>商品情報を入力</h2>
+            <p className="sub">特徴は箇条書き・メモ書きでOK。多いほど精度が上がります。</p>
+
+            <div className="field">
+              <label>商品名 *</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="例）信楽焼 手づくりマグカップ"
+              />
+            </div>
+            <div className="field">
+              <label>特徴・メモ *</label>
+              <textarea
+                value={features}
+                onChange={(e) => setFeatures(e.target.value)}
+                placeholder={"職人の手づくり\n容量320ml・電子レンジ/食洗機対応\nくすみカラー全4色\nギフトにも人気"}
+              />
+            </div>
+            <div className="grid2">
+              <div className="field">
+                <label>ターゲット顧客（任意）</label>
                 <input
-                  type="number"
-                  value={social}
-                  min={0}
-                  step={10000}
-                  onChange={(e) => setSocial(Number(e.target.value) || 0)}
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value)}
+                  placeholder="例）丁寧な暮らしが好きな30〜40代"
                 />
-              </label>
+              </div>
+              <div className="field">
+                <label>価格（任意）</label>
+                <input
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="例）3,800円"
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label>トーン</label>
+              <select value={tone} onChange={(e) => setTone(e.target.value)}>
+                {TONES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="actions">
+              <button className="btn btn-primary" onClick={run} disabled={loading}>
+                {loading ? "AIが生成中…" : "出品パックを生成する"}
+              </button>
+              <button className="btn btn-ghost" onClick={loadSample} disabled={loading}>
+                サンプルを入れる
+              </button>
             </div>
             {error && <div className="err">{error}</div>}
           </div>
@@ -109,125 +154,209 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="foot">
-        ZEIPILOT — AI bookkeeping for freelancers ・ 数字はすべて概算です。
-      </div>
+      <Presell />
+
+      <div className="foot">URIKO — AIで“売れる言葉”を、毎週まるごと。</div>
     </>
   );
 }
 
-function Result({ data }: { data: ApiResult }) {
-  const { tax, totals, items, engine } = data;
-  const lowConf = items.filter((it) => it.confidence < 0.5).length;
-
+function CopyBtn({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
   return (
-    <div>
+    <button
+      className={"copybtn" + (done ? " done" : "")}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setDone(true);
+          setTimeout(() => setDone(false), 1400);
+        } catch {
+          /* clipboard unavailable */
+        }
+      }}
+    >
+      {done ? "コピー済" : "コピー"}
+    </button>
+  );
+}
+
+function Result({ data }: { data: GenerateResult }) {
+  const p: ListingPack = data.pack;
+  return (
+    <div id="result">
       <div className="enginebar">
-        仕訳エンジン:
-        <span className={"pill" + (engine === "mock" ? " mock" : "")}>
-          {engine === "ai" ? "Claude AI" : "ルールベース(モック)"}
+        生成エンジン:
+        <span className={"pill" + (data.engine === "mock" ? " mock" : "")}>
+          {data.engine === "ai" ? "Claude AI" : "テンプレート(モック)"}
         </span>
-        {engine === "mock" && "（ANTHROPIC_API_KEY 未設定のため簡易判定）"}
+        {data.engine === "mock" && "（ANTHROPIC_API_KEY 未設定のため簡易生成）"}
       </div>
 
-      <div className="grid">
-        <div className="stat">
-          <div className="k">売上</div>
-          <div className="v pos">{yen(totals.revenue)}</div>
-        </div>
-        <div className="stat">
-          <div className="k">経費（控除可）</div>
-          <div className="v neg">{yen(totals.expenses)}</div>
-        </div>
-        <div className="stat">
-          <div className="k">利益</div>
-          <div className="v">{yen(tax.profit)}</div>
-        </div>
-        <div className="stat hl">
-          <div className="k">税引後の手取り（概算）</div>
-          <div className="v">{yen(tax.takeHome)}</div>
-        </div>
-      </div>
-
-      <h2 className="sec">税金の内訳（概算 / 実効税率 {(tax.effectiveRate * 100).toFixed(1)}%）</h2>
       <div className="card">
-        <div className="breakdown">
-          <div className="lineitem">
-            <span className="muted">所得税</span>
-            <span>{yen(tax.incomeTax)}</span>
-          </div>
-          <div className="lineitem">
-            <span className="muted">復興特別所得税</span>
-            <span>{yen(tax.reconstructionTax)}</span>
-          </div>
-          <div className="lineitem">
-            <span className="muted">住民税</span>
-            <span>{yen(tax.residentTax)}</span>
-          </div>
-          <div className="lineitem">
-            <span className="muted">個人事業税</span>
-            <span>{yen(tax.businessTax)}</span>
-          </div>
-          <div className="lineitem">
-            <span className="muted">青色申告特別控除</span>
-            <span>− {yen(tax.blueDeduction)}</span>
-          </div>
-          <div className="lineitem">
-            <span className="muted">課税所得（所得税）</span>
-            <span>{yen(tax.taxableIncome)}</span>
-          </div>
-          <div className="lineitem total">
-            <span>税金合計</span>
-            <span>{yen(tax.totalTax)}</span>
-          </div>
-          <div className="lineitem total">
-            <span>納税後に手元に残る額</span>
-            <span>{yen(tax.takeHome)}</span>
+        <div className="block">
+          <h3>
+            <span className="ico">✨</span> キャッチコピー
+          </h3>
+          <div className="copylist">
+            {p.catchcopy.map((c, i) => (
+              <div className="copyrow" key={i}>
+                <span className="txt">{c}</span>
+                <CopyBtn text={c} />
+              </div>
+            ))}
           </div>
         </div>
-      </div>
 
-      <h2 className="sec">
-        AIの自動仕訳（{totals.count}件{lowConf > 0 && ` ・ 要確認 ${lowConf}件`}）
-      </h2>
-      <div className="tablewrap">
-        <table>
-          <thead>
-            <tr>
-              <th>日付</th>
-              <th>内容</th>
-              <th>金額</th>
-              <th>判定</th>
-              <th>勘定科目</th>
-              <th>確信度</th>
-              <th>理由</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it, i) => (
-              <tr key={i} className={it.kind === "private" ? "is-private" : ""}>
-                <td>{it.date}</td>
-                <td>{it.description}</td>
-                <td className="num">{yen(it.amount)}</td>
-                <td>
-                  <span className={"badge " + it.kind}>
-                    {it.kind === "income" ? "売上" : it.kind === "business" ? "経費" : "プライベート"}
-                  </span>
-                </td>
-                <td>{it.account}</td>
-                <td className={"num conf" + (it.confidence < 0.5 ? " low" : "")}>
-                  {Math.round(it.confidence * 100)}%
-                </td>
-                <td className="reason">{it.reason}</td>
-              </tr>
+        <div className="block">
+          <h3>
+            <span className="ico">📝</span> 商品説明文
+          </h3>
+          <div className="copylist">
+            {p.descriptions.map((d, i) => (
+              <div className="copyrow" key={i}>
+                <div>
+                  <span className="label">{d.label}</span>
+                  <div className="txt">{d.text}</div>
+                </div>
+                <CopyBtn text={d.text} />
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
 
-      <div className="notice">
-        ⚠️ 表示される税額・手取りはすべて<strong>概算・目安</strong>です。実際の申告内容は、各種所得控除や消費税の扱いによって変わります。最終的な申告は税理士・税務署にご確認ください。
+        <div className="block">
+          <h3>
+            <span className="ico">✅</span> 訴求ポイント
+          </h3>
+          <div className="copyrow">
+            <ul className="txt" style={{ margin: 0, paddingLeft: 18 }}>
+              {p.bullets.map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
+            </ul>
+            <CopyBtn text={p.bullets.map((b) => `・${b}`).join("\n")} />
+          </div>
+        </div>
+
+        <div className="block">
+          <h3>
+            <span className="ico">🔍</span> SEOタイトル・キーワード
+          </h3>
+          <div className="copyrow">
+            <div className="txt">{p.seo.title}</div>
+            <CopyBtn text={p.seo.title} />
+          </div>
+          <div className="kw">
+            {p.seo.keywords.map((k, i) => (
+              <span className="kwtag" key={i}>
+                {k}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="block">
+          <h3>
+            <span className="ico">📣</span> SNS投稿
+          </h3>
+          <div className="copylist">
+            {p.social.map((s, i) => (
+              <div className="copyrow" key={i}>
+                <div>
+                  <span className="label">{s.platform}</span>
+                  <div className="txt">{s.text}</div>
+                </div>
+                <CopyBtn text={s.text} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="block">
+          <h3>
+            <span className="ico">🎯</span> 検索広告コピー
+          </h3>
+          <div className="copylist">
+            {p.ads.map((a, i) => (
+              <div className="copyrow" key={i}>
+                <div>
+                  <div className="txt" style={{ fontWeight: 700 }}>
+                    {a.headline}
+                  </div>
+                  <div className="txt">{a.body}</div>
+                </div>
+                <CopyBtn text={`${a.headline}\n${a.body}`} />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+function Presell() {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "ok" | "err">("idle");
+  const [msg, setMsg] = useState("");
+
+  async function join() {
+    setState("idle");
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, segment: "ec-seller" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "登録に失敗しました");
+      setState("ok");
+    } catch (e) {
+      setState("err");
+      setMsg(e instanceof Error ? e.message : "登録に失敗しました");
+    }
+  }
+
+  return (
+    <section className="section" id="presell">
+      <div className="wrap">
+        <div className="presell">
+          <h2>先行メンバー募集中</h2>
+          <p>
+            正式版は商品ページ一括生成・レビュー分析・各モール（楽天/Amazon/BASE…）テンプレに対応予定。
+            いま登録すると、リリース時に
+            <strong>先行メンバー価格</strong>でご案内します。
+          </p>
+          <div className="price">
+            ¥980<small> / 月（先行価格・予定）</small>
+          </div>
+          {state === "ok" ? (
+            <div className="thanks">
+              ✅ 登録ありがとうございます！リリース時にご連絡します。
+            </div>
+          ) : (
+            <>
+              <div className="waitform">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="メールアドレス"
+                />
+                <button className="btn btn-primary" onClick={join}>
+                  先行登録する
+                </button>
+              </div>
+              {state === "err" && (
+                <div className="thanks" style={{ background: "rgba(255,90,95,0.18)" }}>
+                  {msg}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
