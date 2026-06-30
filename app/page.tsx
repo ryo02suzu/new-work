@@ -90,14 +90,14 @@ export default function Home() {
             AIが<span className="hl">“そのまま使えるデータ”</span>に。
           </h1>
           <p className="lede">
-            注文書を貼り付ける／写真をアップするだけ。AIが取引先・納期・商品・数量を読み取って、
-            Excelや基幹システムに取り込めるCSVで出力します。受発注の<strong>手入力・転記ミスをゼロ</strong>に。
+            飲食店や小売店から毎日来るFAX・電話・メールの注文を、AIが取引先・納期・商品・数量・規格（ケース/入数）まで
+            読み取って、Excel・基幹に取り込めるCSVで出力。食品卸の受発注の<strong>手入力・転記ミスをゼロ</strong>に。
           </p>
           <div className="chips">
             <span className="chip">FAX画像もそのまま読取</span>
-            <span className="chip">数秒で構造化</span>
+            <span className="chip">ケース/入数も判別</span>
             <span className="chip">要確認を自動フラグ</span>
-            <span className="chip">CSVで出力</span>
+            <span className="chip">基幹に合わせてCSV出力</span>
           </div>
           <div className="herocta">
             <a className="btn btn-primary" href="#tool">
