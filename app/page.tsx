@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SAMPLE_PRODUCT } from "@/lib/sample";
 import { TONES, type GenerateResult, type ListingPack } from "@/lib/types";
+import { MALLS, formatForMall, packToText, type Mall } from "@/lib/malls";
 
 export default function Home() {
   const [name, setName] = useState("");
@@ -150,7 +151,7 @@ export default function Home() {
             {error && <div className="err">{error}</div>}
           </div>
 
-          {result && <Result data={result} />}
+          {result && <Result data={result} productName={name || "商品"} />}
         </div>
       </section>
 
@@ -161,7 +162,7 @@ export default function Home() {
   );
 }
 
-function CopyBtn({ text }: { text: string }) {
+function CopyBtn({ text, label = "コピー" }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
@@ -176,12 +177,41 @@ function CopyBtn({ text }: { text: string }) {
         }
       }}
     >
-      {done ? "コピー済" : "コピー"}
+      {done ? "コピー済" : label}
     </button>
   );
 }
 
-function Result({ data }: { data: GenerateResult }) {
+function MallExport({ pack, productName }: { pack: ListingPack; productName: string }) {
+  const [mall, setMall] = useState<Mall>(MALLS[0]);
+  const text = formatForMall(mall, pack, productName);
+  return (
+    <div className="card" style={{ marginTop: 18 }}>
+      <div className="block" style={{ marginTop: 0 }}>
+        <h3>
+          <span className="ico">🏬</span> モール別に出力（そのまま貼れる）
+        </h3>
+        <div className="malltabs">
+          {MALLS.map((m) => (
+            <button
+              key={m}
+              className={"mallbtn" + (m === mall ? " active" : "")}
+              onClick={() => setMall(m)}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <div className="copyrow" style={{ marginTop: 12 }}>
+          <pre className="malltext">{text}</pre>
+          <CopyBtn text={text} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Result({ data, productName }: { data: GenerateResult; productName: string }) {
   const p: ListingPack = data.pack;
   return (
     <div id="result">
@@ -191,6 +221,9 @@ function Result({ data }: { data: GenerateResult }) {
           {data.engine === "ai" ? "Claude AI" : "テンプレート(モック)"}
         </span>
         {data.engine === "mock" && "（ANTHROPIC_API_KEY 未設定のため簡易生成）"}
+        <span style={{ marginLeft: "auto" }}>
+          <CopyBtn text={packToText(p, productName)} label="全部コピー" />
+        </span>
       </div>
 
       <div className="card">
@@ -292,6 +325,8 @@ function Result({ data }: { data: GenerateResult }) {
           </div>
         </div>
       </div>
+
+      <MallExport pack={p} productName={productName} />
     </div>
   );
 }
@@ -324,12 +359,43 @@ function Presell() {
         <div className="presell">
           <h2>先行メンバー募集中</h2>
           <p>
-            正式版は商品ページ一括生成・レビュー分析・各モール（楽天/Amazon/BASE…）テンプレに対応予定。
-            いま登録すると、リリース時に
-            <strong>先行メンバー価格</strong>でご案内します。
+            いま登録すると、リリース時に<strong>先行メンバー価格</strong>でご案内します。
+            正式版は一括生成・レビュー分析・ブランドトーン記憶に対応予定。
           </p>
-          <div className="price">
-            ¥980<small> / 月（先行価格・予定）</small>
+          <div className="tiers">
+            <div className="tier">
+              <div className="tname">Free</div>
+              <div className="tprice">
+                ¥0<small> / 月</small>
+              </div>
+              <ul>
+                <li>1日3商品まで生成</li>
+                <li>出品パック・コピー</li>
+              </ul>
+            </div>
+            <div className="tier pop">
+              <div className="tbadge">人気</div>
+              <div className="tname">Pro</div>
+              <div className="tprice">
+                ¥980<small> / 月（先行価格）</small>
+              </div>
+              <ul>
+                <li>生成 無制限</li>
+                <li>モール別テンプレ出力</li>
+                <li>全部コピー・履歴</li>
+              </ul>
+            </div>
+            <div className="tier">
+              <div className="tname">Business</div>
+              <div className="tprice">
+                ¥2,980<small> / 月</small>
+              </div>
+              <ul>
+                <li>CSV一括生成</li>
+                <li>レビュー分析</li>
+                <li>ブランドトーン記憶</li>
+              </ul>
+            </div>
           </div>
           {state === "ok" ? (
             <div className="thanks">

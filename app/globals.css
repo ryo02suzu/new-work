@@ -378,11 +378,95 @@ body {
   padding: 18px 0 44px;
 }
 
+.malltabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mallbtn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--muted);
+}
+.mallbtn.active {
+  background: var(--indigo);
+  color: #fff;
+  border-color: var(--indigo);
+}
+.malltext {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 13.5px;
+  margin: 0;
+  color: var(--ink);
+}
+
+.tiers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 18px 0;
+}
+.tier {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 16px;
+}
+.tier.pop {
+  background: #fff;
+  color: var(--ink);
+  position: relative;
+}
+.tier .tname {
+  font-weight: 800;
+  font-size: 15px;
+}
+.tier .tprice {
+  font-size: 22px;
+  font-weight: 900;
+  margin: 4px 0;
+}
+.tier .tprice small {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.tier ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #d6d1f0;
+}
+.tier.pop ul {
+  color: var(--muted);
+}
+.tier .tbadge {
+  position: absolute;
+  top: -10px;
+  right: 12px;
+  background: var(--coral);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
 @media (max-width: 720px) {
   .hero h1 {
     font-size: 30px;
   }
   .grid2 {
+    grid-template-columns: 1fr;
+  }
+  .tiers {
     grid-template-columns: 1fr;
   }
 }
