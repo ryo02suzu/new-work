@@ -1,42 +1,48 @@
-// URIKO — 共有型定義
+// ウケトル — 共有型定義
 
-export const TONES = [
-  "標準",
-  "高級・上質",
-  "カジュアル・親しみ",
-  "感情に訴える",
-  "スペック重視",
-] as const;
-export type Tone = (typeof TONES)[number];
-
-/** ユーザーが入力する商品情報 */
-export type ProductInput = {
+/** 注文1明細 */
+export type OrderItem = {
+  /** 商品名 */
   name: string;
-  /** 特徴・素材・サイズなどのメモ（箇条書きでOK） */
-  features: string;
-  /** ターゲット顧客（任意） */
-  audience?: string;
-  tone?: Tone | string;
-  price?: string;
+  /** 品番・型番（あれば） */
+  code: string;
+  /** 数量（"10"や"5ケース"など単位込みもOK） */
+  quantity: string;
+  /** 単位（個/ケース/箱 など。明細側に含まれていれば空でも可） */
+  unit: string;
+  /** 単価（読み取れれば。無ければ空） */
+  unitPrice: string;
+  /** 金額（読み取れれば。無ければ空） */
+  amount: string;
+  /** 明細単位の備考 */
+  note: string;
 };
 
-/** AIが生成する「出品パック」 */
-export type ListingPack = {
-  /** キャッチコピー候補 */
-  catchcopy: string[];
-  /** 商品説明文（トーン違い複数） */
-  descriptions: { label: string; text: string }[];
-  /** 箇条書きの訴求ポイント */
-  bullets: string[];
-  /** SEO向けのタイトルとキーワード */
-  seo: { title: string; keywords: string[] };
-  /** SNS投稿（X / Instagram など） */
-  social: { platform: string; text: string }[];
-  /** 検索連動型広告などの見出し＋説明 */
-  ads: { headline: string; body: string }[];
+/** 構造化された1件の注文 */
+export type Order = {
+  /** 発注元（取引先名） */
+  supplier: string;
+  /** 注文番号（あれば） */
+  orderNo: string;
+  /** 注文日 */
+  orderDate: string;
+  /** 納品希望日 */
+  deliveryDate: string;
+  /** 配送先・宛先（あれば） */
+  shipTo: string;
+  items: OrderItem[];
+  /** 全体の備考 */
+  notes: string;
+  /** 要確認（読み取れない・欠落・曖昧な箇所）。推測で埋めず、ここに挙げる */
+  warnings: string[];
 };
 
-export type GenerateResult = {
+export type ExtractInput = {
+  text?: string;
+  image?: { data: string; mediaType: string };
+};
+
+export type ExtractResult = {
   engine: "ai" | "mock";
-  pack: ListingPack;
+  order: Order;
 };

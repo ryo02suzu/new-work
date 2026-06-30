@@ -1,74 +1,55 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { SAMPLE_PRODUCT, SAMPLE_BULK } from "@/lib/sample";
-import { TONES, type GenerateResult, type ListingPack } from "@/lib/types";
-import { MALLS, formatForMall, packToText, type Mall } from "@/lib/malls";
-import { parseBulk } from "@/lib/csvbulk";
-import type { BulkItem } from "@/lib/generate";
-import { loadHistory, addEntry, removeEntry, type HistoryEntry } from "@/lib/history";
-import { scanPack, type Finding } from "@/lib/compliance";
+import { useState } from "react";
+import { SAMPLE_ORDER } from "@/lib/sample";
+import { orderToCsv } from "@/lib/ordercsv";
+import type { ExtractResult, Order } from "@/lib/types";
+
+type ImageData = { data: string; mediaType: string; name: string };
 
 export default function Home() {
-  const [name, setName] = useState("");
-  const [features, setFeatures] = useState("");
-  const [audience, setAudience] = useState("");
-  const [tone, setTone] = useState<string>("標準");
-  const [price, setPrice] = useState("");
-
+  const [text, setText] = useState("");
+  const [image, setImage] = useState<ImageData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<GenerateResult | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [result, setResult] = useState<ExtractResult | null>(null);
 
-  useEffect(() => {
-    setHistory(loadHistory());
-  }, []);
-
-  function restore(entry: HistoryEntry) {
-    setName(entry.input.name);
-    setFeatures(entry.input.features);
-    setAudience(entry.input.audience || "");
-    setTone((entry.input.tone as string) || "標準");
-    setPrice(entry.input.price || "");
-    setResult({ engine: entry.engine, pack: entry.pack });
-    setTimeout(
-      () => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }),
-      50
-    );
-  }
-
-  function loadSample() {
-    setName(SAMPLE_PRODUCT.name);
-    setFeatures(SAMPLE_PRODUCT.features);
-    setAudience(SAMPLE_PRODUCT.audience || "");
-    setTone((SAMPLE_PRODUCT.tone as string) || "標準");
-    setPrice(SAMPLE_PRODUCT.price || "");
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const m = String(reader.result).match(/^data:(.+?);base64,(.*)$/);
+      if (m) setImage({ mediaType: m[1], data: m[2], name: f.name });
+    };
+    reader.readAsDataURL(f);
   }
 
   async function run() {
     setError(null);
-    if (!name.trim()) return setError("商品名を入力してください。");
-    if (!features.trim()) return setError("特徴・メモを入力してください（箇条書きでOK）。");
+    if (!text.trim() && !image) {
+      return setError("注文テキストを貼り付けるか、注文書の画像をアップロードしてください。");
+    }
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, features, audience, tone, price }),
+        body: JSON.stringify({
+          text: text.trim() || undefined,
+          image: image ? { data: image.data, mediaType: image.mediaType } : undefined,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "生成に失敗しました");
-      const gr = data as GenerateResult;
-      setResult(gr);
-      setHistory(addEntry({ name, features, audience, tone, price }, gr.pack, gr.engine));
+      if (!res.ok) throw new Error(data.error || "読み取りに失敗しました");
+      setResult(data as ExtractResult);
       setTimeout(
         () => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }),
         50
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "生成に失敗しました");
+      setError(e instanceof Error ? e.message : "読み取りに失敗しました");
     } finally {
       setLoading(false);
     }
@@ -80,34 +61,33 @@ export default function Home() {
         <div className="wrap">
           <div className="nav">
             <div className="brand">
-              <span className="mark">🛍️</span> URIKO
+              <span className="mark">受</span> ウケトル
             </div>
             <a className="navcta" href="#presell">
               先行登録
             </a>
           </div>
           <h1>
-            同じ商品が、言葉を変えるだけで
+            FAX・メール・電話の注文を、
             <br />
-            <span className="hl">売れていく。</span>
+            AIが<span className="hl">“そのまま使えるデータ”</span>に。
           </h1>
           <p className="lede">
-            商品名を入れるだけで、商品説明・キャッチ・SEO・SNS・広告コピーまで、ネットショップに必要な
-            “売れる日本語” を一括生成。プロに頼んだような買いたくなる文章が数十秒で揃い、あなたは
-            売ることだけに集中できます。
+            注文書を貼り付ける／写真をアップするだけ。AIが取引先・納期・商品・数量を読み取って、
+            Excelや基幹システムに取り込めるCSVで出力します。受発注の<strong>手入力・転記ミスをゼロ</strong>に。
           </p>
           <div className="chips">
-            <span className="chip">売れる言葉でCVR改善</span>
-            <span className="chip">書く時間がゼロに</span>
-            <span className="chip">全チャネル一括対応</span>
-            <span className="chip">CSV一括 / モール別出力</span>
+            <span className="chip">FAX画像もそのまま読取</span>
+            <span className="chip">数秒で構造化</span>
+            <span className="chip">要確認を自動フラグ</span>
+            <span className="chip">CSVで出力</span>
           </div>
           <div className="herocta">
             <a className="btn btn-primary" href="#tool">
-              無料で“売れるコピー”を試す
+              無料で試す
             </a>
             <a className="btn btn-light" href="#presell">
-              先行メンバーになる
+              導入相談・先行登録
             </a>
           </div>
         </div>
@@ -116,83 +96,58 @@ export default function Home() {
       <section className="section" id="tool">
         <div className="wrap">
           <div className="card lift">
-            <h2>商品情報を入力</h2>
-            <p className="sub">特徴は箇条書き・メモ書きでOK。多いほど精度が上がります。</p>
-
-            <div className="field">
-              <label>商品名 *</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="例）信楽焼 手づくりマグカップ"
-              />
-            </div>
-            <div className="field">
-              <label>特徴・メモ *</label>
-              <textarea
-                value={features}
-                onChange={(e) => setFeatures(e.target.value)}
-                placeholder={"職人の手づくり\n容量320ml・電子レンジ/食洗機対応\nくすみカラー全4色\nギフトにも人気"}
-              />
-            </div>
-            <div className="grid2">
-              <div className="field">
-                <label>ターゲット顧客（任意）</label>
-                <input
-                  value={audience}
-                  onChange={(e) => setAudience(e.target.value)}
-                  placeholder="例）丁寧な暮らしが好きな30〜40代"
-                />
-              </div>
-              <div className="field">
-                <label>価格（任意）</label>
-                <input
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="例）3,800円"
-                />
-              </div>
-            </div>
-            <div className="field">
-              <label>トーン</label>
-              <select value={tone} onChange={(e) => setTone(e.target.value)}>
-                {TONES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+            <h2>注文を読み取る</h2>
+            <p className="sub">
+              FAX/メール/電話メモの内容を貼り付け、または注文書の写真・スキャン画像をアップロード。
+            </p>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={"〇〇商事 御中\n発注書 6/30\n納品希望 7/3\n・みかんジュース1L ケース ×5\n・野菜ジュース 24本入 2箱 …"}
+            />
             <div className="actions">
               <button className="btn btn-primary" onClick={run} disabled={loading}>
-                {loading ? "AIが生成中…" : "出品パックを生成する"}
+                {loading ? "AIが読み取り中…" : "データ化する"}
               </button>
-              <button className="btn btn-ghost" onClick={loadSample} disabled={loading}>
+              <button className="btn btn-ghost" onClick={() => setText(SAMPLE_ORDER)} disabled={loading}>
                 サンプルを入れる
               </button>
+              <label className="filelabel">
+                <span className="filepill">画像を選択</span>
+                <input type="file" accept="image/*" onChange={onFile} />
+                {image && <span className="imgname">📎 {image.name}</span>}
+              </label>
             </div>
             {error && <div className="err">{error}</div>}
-            <p className="legal">
-              ⚠️ 生成結果は下書きです。景品表示法・薬機法・各モール規約に沿って、最上級表現（No.1
-              /最強/絶対 等）や効能・効果の表現などをご確認のうえご利用ください。
-            </p>
           </div>
 
-          {result && <Result data={result} productName={name || "商品"} />}
-          <HistoryPanel
-            entries={history}
-            onRestore={restore}
-            onDelete={(id) => setHistory(removeEntry(id))}
-          />
+          {result && <Result data={result} />}
+
+          <div className="how">
+            <div className="howc">
+              <div className="n">1</div>
+              <h3>貼る／撮る</h3>
+              <p>FAXやメールの注文をコピペ、または注文書をスマホで撮影してアップ。</p>
+            </div>
+            <div className="howc">
+              <div className="n">2</div>
+              <h3>AIが読み取る</h3>
+              <p>取引先・納期・商品・数量を構造化。曖昧な箇所は「要確認」で自動フラグ。</p>
+            </div>
+            <div className="howc">
+              <div className="n">3</div>
+              <h3>CSVで出力</h3>
+              <p>Excel・基幹システムにそのまま取り込めるCSVをダウンロード。手入力ゼロ。</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <BulkTool />
-
       <Presell />
 
-      <div className="foot">URIKO — AIで“売れる言葉”を、毎週まるごと。</div>
+      <div className="foot">
+        ウケトル — 受発注の手入力をなくす ・ 読み取り結果は最終確認のうえご利用ください。
+      </div>
     </>
   );
 }
@@ -201,7 +156,7 @@ function CopyBtn({ text, label = "コピー" }: { text: string; label?: string }
   const [done, setDone] = useState(false);
   return (
     <button
-      className={"copybtn" + (done ? " done" : "")}
+      className="btn btn-ghost"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -212,341 +167,108 @@ function CopyBtn({ text, label = "コピー" }: { text: string; label?: string }
         }
       }}
     >
-      {done ? "コピー済" : label}
+      {done ? "コピーしました" : label}
     </button>
   );
 }
 
-function MallExport({ pack, productName }: { pack: ListingPack; productName: string }) {
-  const [mall, setMall] = useState<Mall>(MALLS[0]);
-  const text = formatForMall(mall, pack, productName);
+function downloadCsv(order: Order) {
+  const csv = orderToCsv(order);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `order_${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function MetaCell({ k, v }: { k: string; v: string }) {
   return (
-    <div className="card" style={{ marginTop: 18 }}>
-      <div className="block" style={{ marginTop: 0 }}>
-        <h3>
-          <span className="ico">🏬</span> モール別に出力（そのまま貼れる）
-        </h3>
-        <div className="malltabs">
-          {MALLS.map((m) => (
-            <button
-              key={m}
-              className={"mallbtn" + (m === mall ? " active" : "")}
-              onClick={() => setMall(m)}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-        <div className="copyrow" style={{ marginTop: 12 }}>
-          <pre className="malltext">{text}</pre>
-          <CopyBtn text={text} />
-        </div>
-      </div>
+    <div className="metac">
+      <div className="k">{k}</div>
+      <div className={"v" + (v ? "" : " empty")}>{v || "—"}</div>
     </div>
   );
 }
 
-function Result({ data, productName }: { data: GenerateResult; productName: string }) {
-  const p: ListingPack = data.pack;
-  const findings = scanPack(p);
+function Result({ data }: { data: ExtractResult }) {
+  const o = data.order;
   return (
-    <div id="result">
+    <div id="result" style={{ marginTop: 18 }}>
       <div className="enginebar">
-        生成エンジン:
+        読み取りエンジン:
         <span className={"pill" + (data.engine === "mock" ? " mock" : "")}>
-          {data.engine === "ai" ? "Claude AI" : "テンプレート(モック)"}
+          {data.engine === "ai" ? "Claude AI" : "簡易抽出(モック)"}
         </span>
-        {data.engine === "mock" && "（ANTHROPIC_API_KEY 未設定のため簡易生成）"}
-        <span style={{ marginLeft: "auto" }}>
-          <CopyBtn text={packToText(p, productName)} label="全部コピー" />
-        </span>
+        {data.engine === "mock" && "（ANTHROPIC_API_KEY 未設定）"}
       </div>
-
-      <CompliancePanel findings={findings} />
 
       <div className="card">
-        <div className="block">
-          <h3>
-            <span className="ico">✨</span> キャッチコピー
-          </h3>
-          <div className="copylist">
-            {p.catchcopy.map((c, i) => (
-              <div className="copyrow" key={i}>
-                <span className="txt">{c}</span>
-                <CopyBtn text={c} />
-              </div>
-            ))}
-          </div>
+        <div className="meta">
+          <MetaCell k="取引先" v={o.supplier} />
+          <MetaCell k="注文日" v={o.orderDate} />
+          <MetaCell k="納品希望日" v={o.deliveryDate} />
+          <MetaCell k="配送先" v={o.shipTo} />
         </div>
 
-        <div className="block">
-          <h3>
-            <span className="ico">📝</span> 商品説明文
-          </h3>
-          <div className="copylist">
-            {p.descriptions.map((d, i) => (
-              <div className="copyrow" key={i}>
-                <div>
-                  <span className="label">{d.label}</span>
-                  <div className="txt">{d.text}</div>
-                </div>
-                <CopyBtn text={d.text} />
-              </div>
-            ))}
-          </div>
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>商品名</th>
+                <th>品番</th>
+                <th>数量</th>
+                <th>単位</th>
+                <th>単価</th>
+                <th>金額</th>
+                <th>備考</th>
+              </tr>
+            </thead>
+            <tbody>
+              {o.items.map((it, i) => (
+                <tr key={i}>
+                  <td>{it.name}</td>
+                  <td>{it.code || "—"}</td>
+                  <td className={"num" + (it.quantity ? "" : " flag")}>
+                    {it.quantity || "要確認"}
+                  </td>
+                  <td>{it.unit || "—"}</td>
+                  <td className="num">{it.unitPrice || "—"}</td>
+                  <td className="num">{it.amount || "—"}</td>
+                  <td>{it.note || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        <div className="block">
-          <h3>
-            <span className="ico">✅</span> 訴求ポイント
-          </h3>
-          <div className="copyrow">
-            <ul className="txt" style={{ margin: 0, paddingLeft: 18 }}>
-              {p.bullets.map((b, i) => (
-                <li key={i}>{b}</li>
+        {o.notes && (
+          <p style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 10 }}>備考：{o.notes}</p>
+        )}
+
+        {o.warnings.length > 0 ? (
+          <div className="warn">
+            <div className="wh">⚠️ 要確認 {o.warnings.length}件（AIが推測で埋めなかった箇所）</div>
+            <ul>
+              {o.warnings.map((w, i) => (
+                <li key={i}>{w}</li>
               ))}
             </ul>
-            <CopyBtn text={p.bullets.map((b) => `・${b}`).join("\n")} />
           </div>
-        </div>
+        ) : (
+          <div className="ok">✅ 読み取り完了。最終確認のうえCSVをご利用ください。</div>
+        )}
 
-        <div className="block">
-          <h3>
-            <span className="ico">🔍</span> SEOタイトル・キーワード
-          </h3>
-          <div className="copyrow">
-            <div className="txt">{p.seo.title}</div>
-            <CopyBtn text={p.seo.title} />
-          </div>
-          <div className="kw">
-            {p.seo.keywords.map((k, i) => (
-              <span className="kwtag" key={i}>
-                {k}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="block">
-          <h3>
-            <span className="ico">📣</span> SNS投稿
-          </h3>
-          <div className="copylist">
-            {p.social.map((s, i) => (
-              <div className="copyrow" key={i}>
-                <div>
-                  <span className="label">{s.platform}</span>
-                  <div className="txt">{s.text}</div>
-                </div>
-                <CopyBtn text={s.text} />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="block">
-          <h3>
-            <span className="ico">🎯</span> 検索広告コピー
-          </h3>
-          <div className="copylist">
-            {p.ads.map((a, i) => (
-              <div className="copyrow" key={i}>
-                <div>
-                  <div className="txt" style={{ fontWeight: 700 }}>
-                    {a.headline}
-                  </div>
-                  <div className="txt">{a.body}</div>
-                </div>
-                <CopyBtn text={`${a.headline}\n${a.body}`} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <MallExport pack={p} productName={productName} />
-    </div>
-  );
-}
-
-function CompliancePanel({ findings }: { findings: Finding[] }) {
-  if (!findings.length) {
-    return (
-      <div className="compok">
-        ✅ 主要なNG表現は検出されませんでした。最終的な表示責任は事業者にあります。
-      </div>
-    );
-  }
-  return (
-    <div className="compwarn">
-      <div className="compwh">⚠️ コンプラチェック：要確認 {findings.length}件</div>
-      {findings.map((f, i) => (
-        <div className="finding" key={i}>
-          <span className={"fcat " + f.severity}>{f.category}</span>
-          <div>
-            <div className="fterm">
-              「{f.term}」<span className="fwhere">（{f.where}）</span>
-            </div>
-            {f.suggestion && <div className="fsug">{f.suggestion}</div>}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function HistoryPanel({
-  entries,
-  onRestore,
-  onDelete,
-}: {
-  entries: HistoryEntry[];
-  onRestore: (e: HistoryEntry) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(true);
-  if (!entries.length) return null;
-  return (
-    <div className="card" style={{ marginTop: 18 }}>
-      <div className="histhead">
-        <h2 style={{ margin: 0, fontSize: 17 }}>
-          履歴（この端末に保存・{entries.length}件）
-        </h2>
-        <button className="copybtn" onClick={() => setOpen((v) => !v)}>
-          {open ? "隠す" : "表示"}
-        </button>
-      </div>
-      {open && (
-        <div className="histlist">
-          {entries.map((e) => (
-            <div className="histrow" key={e.id}>
-              <div>
-                <div className="histname">{e.productName}</div>
-                <div className="histmeta">
-                  {new Date(e.ts).toLocaleString("ja-JP")}・{e.pack.descriptions.length}トーン
-                </div>
-              </div>
-              <div className="histactions">
-                <button className="copybtn" onClick={() => onRestore(e)}>
-                  復元
-                </button>
-                <button className="copybtn" onClick={() => onDelete(e.id)}>
-                  削除
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BulkTool() {
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<BulkItem[] | null>(null);
-
-  async function run() {
-    setError(null);
-    const products = parseBulk(text);
-    if (products.length === 0)
-      return setError("「商品名 | 特徴」の形式で、1行ずつ入力してください。");
-    if (products.length > 20) return setError("デモでは一度に20件までです。");
-    setLoading(true);
-    setItems(null);
-    try {
-      const res = await fetch("/api/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "生成に失敗しました");
-      setItems(data.items as BulkItem[]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "生成に失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <section className="section" id="bulk">
-      <div className="wrap">
-        <div className="card">
-          <h2>
-            CSV一括生成 <span className="beta">Starter以上</span>
-          </h2>
-          <p className="sub">
-            1行＝1商品：「商品名 | 特徴（；で複数） | ターゲット | トーン | 価格」。複数商品をまとめて出品パック化します。
-          </p>
-          <div className="field">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={"信楽焼マグカップ | 手づくり；320ml；食洗機対応 | 30〜40代 | 高級・上質 | 3,800円\nベビースタイ | オーガニックコットン；名入れ可 | 出産祝い | カジュアル・親しみ | 1,980円"}
-              style={{ minHeight: 120 }}
-            />
-          </div>
-          <div className="actions">
-            <button className="btn btn-primary" onClick={run} disabled={loading}>
-              {loading ? "一括生成中…" : "まとめて生成する"}
-            </button>
-            <button
-              className="btn btn-ghost"
-              onClick={() => setText(SAMPLE_BULK)}
-              disabled={loading}
-            >
-              サンプルを入れる
-            </button>
-          </div>
-          {error && <div className="err">{error}</div>}
-
-          {items && (
-            <div style={{ marginTop: 16 }}>
-              <div className="enginebar">
-                {items.length}商品を生成
-                <span className={"pill" + (items[0]?.engine === "mock" ? " mock" : "")}>
-                  {items[0]?.engine === "ai" ? "Claude AI" : "テンプレート"}
-                </span>
-              </div>
-              <div className="bulklist">
-                {items.map((it, i) => (
-                  <BulkCard key={i} item={it} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function BulkCard({ item }: { item: BulkItem }) {
-  const [open, setOpen] = useState(false);
-  const p = item.pack;
-  const name = item.product.name;
-  const std =
-    p.descriptions.find((d) => d.label.includes("標準"))?.text ||
-    p.descriptions[0]?.text ||
-    "";
-  return (
-    <div className="bulkcard">
-      <div className="bulkhead">
-        <div className="bulkname">{name}</div>
-        <div className="bulkactions">
-          <CopyBtn text={packToText(p, name)} label="全部コピー" />
-          <button className="copybtn" onClick={() => setOpen((v) => !v)}>
-            {open ? "閉じる" : "詳細"}
+        <div className="resactions">
+          <button className="btn btn-primary" onClick={() => downloadCsv(o)}>
+            CSVをダウンロード
           </button>
+          <CopyBtn text={orderToCsv(o)} label="CSVをコピー" />
         </div>
       </div>
-      <div className="bulkcatch">{p.catchcopy[0]}</div>
-      <div className="bulkdesc">{std}</div>
-      {open && <MallExport pack={p} productName={name} />}
     </div>
   );
 }
@@ -562,7 +284,7 @@ function Presell() {
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, segment: "ec-seller" }),
+        body: JSON.stringify({ email, segment: "order-dx" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "登録に失敗しました");
@@ -577,54 +299,16 @@ function Presell() {
     <section className="section" id="presell">
       <div className="wrap">
         <div className="presell">
-          <h2>先行メンバー募集中</h2>
+          <h2>導入相談・先行登録</h2>
           <p>
-            いま登録すると、リリース時に<strong>先行メンバー価格</strong>でご案内します。
-            正式版は一括生成・レビュー分析・ブランドトーン記憶に対応予定。
+            FAX・電話注文が多い卸・製造の現場向け。正式版は基幹システム連携・複数注文の一括処理・
+            取引先別の読み取りルール学習に対応予定。まずは御社の注文書1週間ぶんを、無料でデータ化します。
           </p>
-          <div className="tiers">
-            <div className="tier">
-              <div className="tname">Free</div>
-              <div className="tprice">
-                ¥0<small> / 月</small>
-              </div>
-              <ul>
-                <li>生成 月20回</li>
-                <li>商品説明・SNS</li>
-                <li>履歴7日</li>
-              </ul>
-            </div>
-            <div className="tier pop">
-              <div className="tbadge">おすすめ</div>
-              <div className="tname">Starter</div>
-              <div className="tprice">
-                ¥4,980<small> / 月</small>
-              </div>
-              <ul>
-                <li>生成 月300回・全チャネル</li>
-                <li>CSV一括（50商品）</li>
-                <li>モール別出力・履歴保存</li>
-              </ul>
-            </div>
-            <div className="tier">
-              <div className="tname">Pro</div>
-              <div className="tprice">
-                ¥14,800<small> / 月</small>
-              </div>
-              <ul>
-                <li>生成 月2,000回</li>
-                <li>CSV一括（500商品）</li>
-                <li>ブランドボイス・チーム3席</li>
-              </ul>
-            </div>
+          <div className="price">
+            ¥9,800<small> / 月〜（先行価格・予定）</small>
           </div>
-          <p style={{ fontSize: 12.5, color: "#cfc9ee", margin: "4px 0 0" }}>
-            年払いは2ヶ月無料。先行登録の方にはリリース時に先行価格でご案内します。
-          </p>
           {state === "ok" ? (
-            <div className="thanks">
-              ✅ 登録ありがとうございます！リリース時にご連絡します。
-            </div>
+            <div className="thanks">✅ ありがとうございます！担当よりご連絡します。</div>
           ) : (
             <>
               <div className="waitform">
@@ -635,13 +319,11 @@ function Presell() {
                   placeholder="メールアドレス"
                 />
                 <button className="btn btn-primary" onClick={join}>
-                  先行登録する
+                  無料でデータ化を申し込む
                 </button>
               </div>
               {state === "err" && (
-                <div className="thanks" style={{ background: "rgba(255,90,95,0.18)" }}>
-                  {msg}
-                </div>
+                <div className="thanks" style={{ background: "rgba(245,165,36,0.2)" }}>{msg}</div>
               )}
             </>
           )}

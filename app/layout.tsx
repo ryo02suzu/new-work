@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "URIKO — ネットショップの“売る言葉”をAIが量産",
+  title: "ウケトル — FAX・メール・電話の注文をAIがデータ化",
   description:
-    "商品名と特徴を入れるだけ。商品説明文・キャッチコピー・SEO・SNS投稿・広告コピーをAIが一発で生成。ネットショップ運営者のための出品コピー自動生成ツール。",
+    "FAX・メール・電話メモの注文を、AIが数秒で“そのまま使えるデータ”に。Excel/基幹に転記できるCSVで出力。受発注の手入力をゼロにする、卸・製造の小さな会社のためのツール。",
 };
 
 export default function RootLayout({
