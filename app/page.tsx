@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SAMPLE_ORDER } from "@/lib/sample";
-import { orderToCsv, ordersToCsv } from "@/lib/ordercsv";
+import {
+  buildCsv,
+  defaultConfig,
+  loadConfig,
+  saveConfig,
+  moveColumn,
+  type CsvConfig,
+} from "@/lib/csvconfig";
 import type { ExtractInput, ExtractResult, Order } from "@/lib/types";
 
 type ImageData = { data: string; mediaType: string; name: string };
@@ -13,6 +20,16 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractResult | null>(null);
+  const [csvConfig, setCsvConfig] = useState<CsvConfig>(defaultConfig());
+
+  useEffect(() => {
+    setCsvConfig(loadConfig());
+  }, []);
+
+  function updateConfig(c: CsvConfig) {
+    setCsvConfig(c);
+    saveConfig(c);
+  }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -121,7 +138,9 @@ export default function Home() {
             {error && <div className="err">{error}</div>}
           </div>
 
-          {result && <Result data={result} />}
+          {result && <Result data={result} config={csvConfig} />}
+
+          <CsvSettings config={csvConfig} onChange={updateConfig} />
 
           <div className="how">
             <div className="howc">
@@ -143,7 +162,7 @@ export default function Home() {
         </div>
       </section>
 
-      <BatchTool />
+      <BatchTool config={csvConfig} />
 
       <Presell />
 
@@ -174,29 +193,24 @@ function CopyBtn({ text, label = "コピー" }: { text: string; label?: string }
   );
 }
 
-function downloadCsv(order: Order) {
-  const csv = orderToCsv(order);
+function triggerDownload(csv: string, filename: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `order_${Date.now()}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-function downloadAll(orders: Order[]) {
-  const blob = new Blob([ordersToCsv(orders)], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `orders_${Date.now()}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+function downloadCsv(order: Order, config: CsvConfig) {
+  triggerDownload(buildCsv([order], { ...config, withOrderId: false }), `order_${Date.now()}.csv`);
+}
+
+function downloadAll(orders: Order[], config: CsvConfig) {
+  triggerDownload(buildCsv(orders, { ...config, withOrderId: true }), `orders_${Date.now()}.csv`);
 }
 
 function MetaCell({ k, v }: { k: string; v: string }) {
@@ -208,7 +222,7 @@ function MetaCell({ k, v }: { k: string; v: string }) {
   );
 }
 
-function Result({ data }: { data: ExtractResult }) {
+function Result({ data, config }: { data: ExtractResult; config: CsvConfig }) {
   const o = data.order;
   return (
     <div id="result" style={{ marginTop: 18 }}>
@@ -277,17 +291,87 @@ function Result({ data }: { data: ExtractResult }) {
         )}
 
         <div className="resactions">
-          <button className="btn btn-primary" onClick={() => downloadCsv(o)}>
+          <button className="btn btn-primary" onClick={() => downloadCsv(o, config)}>
             CSVをダウンロード
           </button>
-          <CopyBtn text={orderToCsv(o)} label="CSVをコピー" />
+          <CopyBtn text={buildCsv([o], { ...config, withOrderId: false })} label="CSVをコピー" />
         </div>
       </div>
     </div>
   );
 }
 
-function BatchTool() {
+function CsvSettings({
+  config,
+  onChange,
+}: {
+  config: CsvConfig;
+  onChange: (c: CsvConfig) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  function setCol(i: number, patch: Partial<{ enabled: boolean; header: string }>) {
+    onChange({
+      ...config,
+      columns: config.columns.map((c, j) => (j === i ? { ...c, ...patch } : c)),
+    });
+  }
+  return (
+    <div className="card" style={{ marginTop: 18 }}>
+      <div className="csvhead">
+        <h2 style={{ margin: 0, fontSize: 17 }}>CSV出力設定（基幹・Excelの項目に合わせる）</h2>
+        <button className="btn btn-ghost" onClick={() => setOpen((v) => !v)}>
+          {open ? "閉じる" : "ひらく"}
+        </button>
+      </div>
+      {open && (
+        <div style={{ marginTop: 14 }}>
+          <p className="sub">
+            使う列だけON、列名は御社の項目名に変更、順序も入れ替え可。設定はこの端末に保存されます。
+          </p>
+          <div className="csvcols">
+            {config.columns.map((col, i) => (
+              <div className="csvrow" key={col.key}>
+                <input
+                  type="checkbox"
+                  checked={col.enabled}
+                  onChange={(e) => setCol(i, { enabled: e.target.checked })}
+                />
+                <input
+                  className="csvname"
+                  value={col.header}
+                  onChange={(e) => setCol(i, { header: e.target.value })}
+                />
+                <div className="csvmove">
+                  <button
+                    className="minibtn"
+                    disabled={i === 0}
+                    onClick={() => onChange(moveColumn(config, i, -1))}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    className="minibtn"
+                    disabled={i === config.columns.length - 1}
+                    onClick={() => onChange(moveColumn(config, i, 1))}
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <button className="btn btn-ghost" onClick={() => onChange(defaultConfig())}>
+              標準に戻す
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BatchTool({ config }: { config: CsvConfig }) {
   const [text, setText] = useState("");
   const [images, setImages] = useState<ImageData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -379,7 +463,10 @@ function BatchTool() {
                   {items[0]?.engine === "ai" ? "Claude AI" : "簡易抽出"}
                 </span>
                 <span style={{ marginLeft: "auto" }}>
-                  <button className="btn btn-primary" onClick={() => downloadAll(items.map((it) => it.order))}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => downloadAll(items.map((it) => it.order), config)}
+                  >
                     全件まとめてCSV
                   </button>
                 </span>
@@ -398,7 +485,7 @@ function BatchTool() {
                         )}
                       </div>
                     </div>
-                    <button className="btn btn-ghost" onClick={() => downloadCsv(it.order)}>
+                    <button className="btn btn-ghost" onClick={() => downloadCsv(it.order, config)}>
                       CSV
                     </button>
                   </div>

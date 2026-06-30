@@ -464,6 +464,59 @@ td.flag {
   font-weight: 700;
 }
 
+.csvhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.csvcols {
+  display: grid;
+  gap: 8px;
+}
+.csvrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #fafcff;
+}
+.csvrow input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+.csvname {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.csvname:focus {
+  outline: 2px solid var(--blue);
+  border-color: var(--blue);
+}
+.csvmove {
+  display: flex;
+  gap: 4px;
+}
+.minibtn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--navy);
+}
+.minibtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 @media (max-width: 760px) {
   .hero h1 {
     font-size: 29px;
