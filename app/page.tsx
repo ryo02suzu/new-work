@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SAMPLE_PRODUCT, SAMPLE_BULK } from "@/lib/sample";
 import { TONES, type GenerateResult, type ListingPack } from "@/lib/types";
 import { MALLS, formatForMall, packToText, type Mall } from "@/lib/malls";
 import { parseBulk } from "@/lib/csvbulk";
 import type { BulkItem } from "@/lib/generate";
+import { loadHistory, addEntry, removeEntry, type HistoryEntry } from "@/lib/history";
+import { scanPack, type Finding } from "@/lib/compliance";
 
 export default function Home() {
   const [name, setName] = useState("");
@@ -17,6 +19,24 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateResult | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  useEffect(() => {
+    setHistory(loadHistory());
+  }, []);
+
+  function restore(entry: HistoryEntry) {
+    setName(entry.input.name);
+    setFeatures(entry.input.features);
+    setAudience(entry.input.audience || "");
+    setTone((entry.input.tone as string) || "標準");
+    setPrice(entry.input.price || "");
+    setResult({ engine: entry.engine, pack: entry.pack });
+    setTimeout(
+      () => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }),
+      50
+    );
+  }
 
   function loadSample() {
     setName(SAMPLE_PRODUCT.name);
@@ -40,7 +60,9 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成に失敗しました");
-      setResult(data as GenerateResult);
+      const gr = data as GenerateResult;
+      setResult(gr);
+      setHistory(addEntry({ name, features, audience, tone, price }, gr.pack, gr.engine));
       setTimeout(
         () => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }),
         50
@@ -158,6 +180,11 @@ export default function Home() {
           </div>
 
           {result && <Result data={result} productName={name || "商品"} />}
+          <HistoryPanel
+            entries={history}
+            onRestore={restore}
+            onDelete={(id) => setHistory(removeEntry(id))}
+          />
         </div>
       </section>
 
@@ -221,6 +248,7 @@ function MallExport({ pack, productName }: { pack: ListingPack; productName: str
 
 function Result({ data, productName }: { data: GenerateResult; productName: string }) {
   const p: ListingPack = data.pack;
+  const findings = scanPack(p);
   return (
     <div id="result">
       <div className="enginebar">
@@ -233,6 +261,8 @@ function Result({ data, productName }: { data: GenerateResult; productName: stri
           <CopyBtn text={packToText(p, productName)} label="全部コピー" />
         </span>
       </div>
+
+      <CompliancePanel findings={findings} />
 
       <div className="card">
         <div className="block">
@@ -335,6 +365,79 @@ function Result({ data, productName }: { data: GenerateResult; productName: stri
       </div>
 
       <MallExport pack={p} productName={productName} />
+    </div>
+  );
+}
+
+function CompliancePanel({ findings }: { findings: Finding[] }) {
+  if (!findings.length) {
+    return (
+      <div className="compok">
+        ✅ 主要なNG表現は検出されませんでした。最終的な表示責任は事業者にあります。
+      </div>
+    );
+  }
+  return (
+    <div className="compwarn">
+      <div className="compwh">⚠️ コンプラチェック：要確認 {findings.length}件</div>
+      {findings.map((f, i) => (
+        <div className="finding" key={i}>
+          <span className={"fcat " + f.severity}>{f.category}</span>
+          <div>
+            <div className="fterm">
+              「{f.term}」<span className="fwhere">（{f.where}）</span>
+            </div>
+            {f.suggestion && <div className="fsug">{f.suggestion}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HistoryPanel({
+  entries,
+  onRestore,
+  onDelete,
+}: {
+  entries: HistoryEntry[];
+  onRestore: (e: HistoryEntry) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  if (!entries.length) return null;
+  return (
+    <div className="card" style={{ marginTop: 18 }}>
+      <div className="histhead">
+        <h2 style={{ margin: 0, fontSize: 17 }}>
+          履歴（この端末に保存・{entries.length}件）
+        </h2>
+        <button className="copybtn" onClick={() => setOpen((v) => !v)}>
+          {open ? "隠す" : "表示"}
+        </button>
+      </div>
+      {open && (
+        <div className="histlist">
+          {entries.map((e) => (
+            <div className="histrow" key={e.id}>
+              <div>
+                <div className="histname">{e.productName}</div>
+                <div className="histmeta">
+                  {new Date(e.ts).toLocaleString("ja-JP")}・{e.pack.descriptions.length}トーン
+                </div>
+              </div>
+              <div className="histactions">
+                <button className="copybtn" onClick={() => onRestore(e)}>
+                  復元
+                </button>
+                <button className="copybtn" onClick={() => onDelete(e.id)}>
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
