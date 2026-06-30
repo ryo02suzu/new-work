@@ -1,0 +1,25 @@
+{
+  "name": "zeipilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ZEIPILOT — フリーランス・個人事業主向けのAI経理エージェント。取引データを入れるだけで、AIが事業/プライベートを判定して仕訳し、手取りと税金の概算を即計算する。",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.106.0",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  }
+}
