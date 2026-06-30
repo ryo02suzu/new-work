@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { SAMPLE_ORDER } from "@/lib/sample";
-import { orderToCsv } from "@/lib/ordercsv";
-import type { ExtractResult, Order } from "@/lib/types";
+import { orderToCsv, ordersToCsv } from "@/lib/ordercsv";
+import type { ExtractInput, ExtractResult, Order } from "@/lib/types";
 
 type ImageData = { data: string; mediaType: string; name: string };
 
@@ -143,6 +143,8 @@ export default function Home() {
         </div>
       </section>
 
+      <BatchTool />
+
       <Presell />
 
       <div className="foot">
@@ -179,6 +181,18 @@ function downloadCsv(order: Order) {
   const a = document.createElement("a");
   a.href = url;
   a.download = `order_${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function downloadAll(orders: Order[]) {
+  const blob = new Blob([ordersToCsv(orders)], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `orders_${Date.now()}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -270,6 +284,131 @@ function Result({ data }: { data: ExtractResult }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function BatchTool() {
+  const [text, setText] = useState("");
+  const [images, setImages] = useState<ImageData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<ExtractResult[] | null>(null);
+
+  function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<ImageData | null>((resolve) => {
+            const r = new FileReader();
+            r.onload = () => {
+              const m = String(r.result).match(/^data:(.+?);base64,(.*)$/);
+              resolve(m ? { mediaType: m[1], data: m[2], name: f.name } : null);
+            };
+            r.readAsDataURL(f);
+          })
+      )
+    ).then((arr) => setImages(arr.filter(Boolean) as ImageData[]));
+  }
+
+  async function run() {
+    setError(null);
+    const textOrders: ExtractInput[] = text
+      .split(/^\s*-{3,}\s*$/m)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => ({ text: t }));
+    const imageOrders: ExtractInput[] = images.map((im) => ({
+      image: { data: im.data, mediaType: im.mediaType },
+    }));
+    const inputs = [...textOrders, ...imageOrders];
+    if (inputs.length === 0)
+      return setError("注文を「---」の行で区切って貼るか、画像を複数選択してください。");
+    if (inputs.length > 20) return setError("デモでは一度に20件までです。");
+    setLoading(true);
+    setItems(null);
+    try {
+      const res = await fetch("/api/extract-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inputs }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "処理に失敗しました");
+      setItems(data.items as ExtractResult[]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "処理に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="section" id="batch">
+      <div className="wrap">
+        <div className="card">
+          <h2>
+            複数注文を一括処理 <span className="beta">今日ぶん、まとめて</span>
+          </h2>
+          <p className="sub">
+            注文を「---」の行で区切って貼り付け、または注文書の画像を複数選択。まとめてデータ化し、1つのCSVにまとめます。
+          </p>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={"〇〇商事 注文 …\n---\n△△工業 注文 …\n---\n□□フード 注文 …"}
+            style={{ minHeight: 130 }}
+          />
+          <div className="actions">
+            <button className="btn btn-primary" onClick={run} disabled={loading}>
+              {loading ? "一括処理中…" : "まとめてデータ化"}
+            </button>
+            <label className="filelabel">
+              <span className="filepill">画像を複数選択</span>
+              <input type="file" accept="image/*" multiple onChange={onFiles} />
+              {images.length > 0 && <span className="imgname">📎 {images.length}枚</span>}
+            </label>
+          </div>
+          {error && <div className="err">{error}</div>}
+
+          {items && (
+            <div style={{ marginTop: 16 }}>
+              <div className="enginebar">
+                {items.length}件を処理
+                <span className={"pill" + (items[0]?.engine === "mock" ? " mock" : "")}>
+                  {items[0]?.engine === "ai" ? "Claude AI" : "簡易抽出"}
+                </span>
+                <span style={{ marginLeft: "auto" }}>
+                  <button className="btn btn-primary" onClick={() => downloadAll(items.map((it) => it.order))}>
+                    全件まとめてCSV
+                  </button>
+                </span>
+              </div>
+              <div className="batchlist">
+                {items.map((it, i) => (
+                  <div className="batchrow" key={i}>
+                    <div>
+                      <div className="bname">
+                        {i + 1}. {it.order.supplier || "（取引先 要確認）"}
+                      </div>
+                      <div className="bmeta">
+                        納期 {it.order.deliveryDate || "—"}・{it.order.items.length}明細
+                        {it.order.warnings.length > 0 && (
+                          <span className="bwarn"> ・要確認{it.order.warnings.length}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button className="btn btn-ghost" onClick={() => downloadCsv(it.order)}>
+                      CSV
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -45,6 +45,18 @@ const SCHEMA = {
   },
 } as const;
 
+/** 複数の注文をまとめて処理（同時実行は控えめにしてレート制限を回避） */
+export async function extractMany(inputs: ExtractInput[]): Promise<ExtractResult[]> {
+  const out: ExtractResult[] = [];
+  const CONCURRENCY = 3;
+  for (let i = 0; i < inputs.length; i += CONCURRENCY) {
+    const batch = inputs.slice(i, i + CONCURRENCY);
+    const res = await Promise.all(batch.map(extractOrder));
+    out.push(...res);
+  }
+  return out;
+}
+
 export async function extractOrder(input: ExtractInput): Promise<ExtractResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return { engine: "mock", order: mockOrder(input.text || "") };

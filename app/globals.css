@@ -427,6 +427,43 @@ td.flag {
   padding: 18px 0 44px;
 }
 
+.beta {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--blue-dark);
+  background: #e7f0fa;
+  padding: 2px 9px;
+  border-radius: 999px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.batchlist {
+  display: grid;
+  gap: 8px;
+}
+.batchrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafcff;
+}
+.bname {
+  font-weight: 700;
+  font-size: 14px;
+}
+.bmeta {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.bwarn {
+  color: var(--warn);
+  font-weight: 700;
+}
+
 @media (max-width: 760px) {
   .hero h1 {
     font-size: 29px;
