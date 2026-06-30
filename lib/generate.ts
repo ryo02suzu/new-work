@@ -73,6 +73,22 @@ function buildPrompt(p: ProductInput): string {
   return `次の商品の出品パックを作ってください。\n\n${lines.join("\n")}`;
 }
 
+export type BulkItem = { product: ProductInput } & GenerateResult;
+
+/** 複数商品をまとめて生成（同時実行は控えめにしてレート制限を回避） */
+export async function generateMany(products: ProductInput[]): Promise<BulkItem[]> {
+  const out: BulkItem[] = [];
+  const CONCURRENCY = 4;
+  for (let i = 0; i < products.length; i += CONCURRENCY) {
+    const batch = products.slice(i, i + CONCURRENCY);
+    const res = await Promise.all(
+      batch.map((p) => generate(p).then((g) => ({ product: p, ...g })))
+    );
+    out.push(...res);
+  }
+  return out;
+}
+
 export async function generate(input: ProductInput): Promise<GenerateResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return { engine: "mock", pack: mockPack(input) };

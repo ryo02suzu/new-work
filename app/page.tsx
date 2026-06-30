@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { SAMPLE_PRODUCT } from "@/lib/sample";
+import { SAMPLE_PRODUCT, SAMPLE_BULK } from "@/lib/sample";
 import { TONES, type GenerateResult, type ListingPack } from "@/lib/types";
 import { MALLS, formatForMall, packToText, type Mall } from "@/lib/malls";
+import { parseBulk } from "@/lib/csvbulk";
+import type { BulkItem } from "@/lib/generate";
 
 export default function Home() {
   const [name, setName] = useState("");
@@ -63,24 +65,24 @@ export default function Home() {
             </a>
           </div>
           <h1>
-            ネットショップの<span className="hl">“売る言葉”</span>を、
+            同じ商品が、言葉を変えるだけで
             <br />
-            AIがまるごと量産。
+            <span className="hl">売れていく。</span>
           </h1>
           <p className="lede">
-            商品名と特徴を入れるだけ。商品説明文・キャッチコピー・SEOタイトル・SNS投稿・広告コピーを、
-            ECに最適化された形でAIが一発生成します。毎週の「文章を書く時間」を、ゼロに。
+            商品名を入れるだけで、商品説明・キャッチ・SEO・SNS・広告コピーまで、ネットショップに必要な
+            “売れる日本語” を一括生成。プロに頼んだような買いたくなる文章が数十秒で揃い、あなたは
+            売ることだけに集中できます。
           </p>
           <div className="chips">
-            <span className="chip">商品説明文 ×3トーン</span>
-            <span className="chip">キャッチコピー</span>
-            <span className="chip">SEOタイトル・キーワード</span>
-            <span className="chip">X / Instagram 投稿</span>
-            <span className="chip">検索広告コピー</span>
+            <span className="chip">売れる言葉でCVR改善</span>
+            <span className="chip">書く時間がゼロに</span>
+            <span className="chip">全チャネル一括対応</span>
+            <span className="chip">CSV一括 / モール別出力</span>
           </div>
           <div className="herocta">
             <a className="btn btn-primary" href="#tool">
-              無料で試す
+              無料で“売れるコピー”を試す
             </a>
             <a className="btn btn-light" href="#presell">
               先行メンバーになる
@@ -149,11 +151,17 @@ export default function Home() {
               </button>
             </div>
             {error && <div className="err">{error}</div>}
+            <p className="legal">
+              ⚠️ 生成結果は下書きです。景品表示法・薬機法・各モール規約に沿って、最上級表現（No.1
+              /最強/絶対 等）や効能・効果の表現などをご確認のうえご利用ください。
+            </p>
           </div>
 
           {result && <Result data={result} productName={name || "商品"} />}
         </div>
       </section>
+
+      <BulkTool />
 
       <Presell />
 
@@ -331,6 +339,115 @@ function Result({ data, productName }: { data: GenerateResult; productName: stri
   );
 }
 
+function BulkTool() {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<BulkItem[] | null>(null);
+
+  async function run() {
+    setError(null);
+    const products = parseBulk(text);
+    if (products.length === 0)
+      return setError("「商品名 | 特徴」の形式で、1行ずつ入力してください。");
+    if (products.length > 20) return setError("デモでは一度に20件までです。");
+    setLoading(true);
+    setItems(null);
+    try {
+      const res = await fetch("/api/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ products }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "生成に失敗しました");
+      setItems(data.items as BulkItem[]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "生成に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="section" id="bulk">
+      <div className="wrap">
+        <div className="card">
+          <h2>
+            CSV一括生成 <span className="beta">Starter以上</span>
+          </h2>
+          <p className="sub">
+            1行＝1商品：「商品名 | 特徴（；で複数） | ターゲット | トーン | 価格」。複数商品をまとめて出品パック化します。
+          </p>
+          <div className="field">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={"信楽焼マグカップ | 手づくり；320ml；食洗機対応 | 30〜40代 | 高級・上質 | 3,800円\nベビースタイ | オーガニックコットン；名入れ可 | 出産祝い | カジュアル・親しみ | 1,980円"}
+              style={{ minHeight: 120 }}
+            />
+          </div>
+          <div className="actions">
+            <button className="btn btn-primary" onClick={run} disabled={loading}>
+              {loading ? "一括生成中…" : "まとめて生成する"}
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => setText(SAMPLE_BULK)}
+              disabled={loading}
+            >
+              サンプルを入れる
+            </button>
+          </div>
+          {error && <div className="err">{error}</div>}
+
+          {items && (
+            <div style={{ marginTop: 16 }}>
+              <div className="enginebar">
+                {items.length}商品を生成
+                <span className={"pill" + (items[0]?.engine === "mock" ? " mock" : "")}>
+                  {items[0]?.engine === "ai" ? "Claude AI" : "テンプレート"}
+                </span>
+              </div>
+              <div className="bulklist">
+                {items.map((it, i) => (
+                  <BulkCard key={i} item={it} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BulkCard({ item }: { item: BulkItem }) {
+  const [open, setOpen] = useState(false);
+  const p = item.pack;
+  const name = item.product.name;
+  const std =
+    p.descriptions.find((d) => d.label.includes("標準"))?.text ||
+    p.descriptions[0]?.text ||
+    "";
+  return (
+    <div className="bulkcard">
+      <div className="bulkhead">
+        <div className="bulkname">{name}</div>
+        <div className="bulkactions">
+          <CopyBtn text={packToText(p, name)} label="全部コピー" />
+          <button className="copybtn" onClick={() => setOpen((v) => !v)}>
+            {open ? "閉じる" : "詳細"}
+          </button>
+        </div>
+      </div>
+      <div className="bulkcatch">{p.catchcopy[0]}</div>
+      <div className="bulkdesc">{std}</div>
+      {open && <MallExport pack={p} productName={name} />}
+    </div>
+  );
+}
+
 function Presell() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "ok" | "err">("idle");
@@ -369,34 +486,38 @@ function Presell() {
                 ¥0<small> / 月</small>
               </div>
               <ul>
-                <li>1日3商品まで生成</li>
-                <li>出品パック・コピー</li>
+                <li>生成 月20回</li>
+                <li>商品説明・SNS</li>
+                <li>履歴7日</li>
               </ul>
             </div>
             <div className="tier pop">
-              <div className="tbadge">人気</div>
-              <div className="tname">Pro</div>
+              <div className="tbadge">おすすめ</div>
+              <div className="tname">Starter</div>
               <div className="tprice">
-                ¥980<small> / 月（先行価格）</small>
+                ¥4,980<small> / 月</small>
               </div>
               <ul>
-                <li>生成 無制限</li>
-                <li>モール別テンプレ出力</li>
-                <li>全部コピー・履歴</li>
+                <li>生成 月300回・全チャネル</li>
+                <li>CSV一括（50商品）</li>
+                <li>モール別出力・履歴保存</li>
               </ul>
             </div>
             <div className="tier">
-              <div className="tname">Business</div>
+              <div className="tname">Pro</div>
               <div className="tprice">
-                ¥2,980<small> / 月</small>
+                ¥14,800<small> / 月</small>
               </div>
               <ul>
-                <li>CSV一括生成</li>
-                <li>レビュー分析</li>
-                <li>ブランドトーン記憶</li>
+                <li>生成 月2,000回</li>
+                <li>CSV一括（500商品）</li>
+                <li>ブランドボイス・チーム3席</li>
               </ul>
             </div>
           </div>
+          <p style={{ fontSize: 12.5, color: "#cfc9ee", margin: "4px 0 0" }}>
+            年払いは2ヶ月無料。先行登録の方にはリリース時に先行価格でご案内します。
+          </p>
           {state === "ok" ? (
             <div className="thanks">
               ✅ 登録ありがとうございます！リリース時にご連絡します。
